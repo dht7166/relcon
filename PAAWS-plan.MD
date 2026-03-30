@@ -106,22 +106,36 @@ Both share the same structure:
 ## Step 2 — Train MotifDist
 
 ```bash
-python run_exp.py --config paaws_motifdist
+python run_exp.py --config paaws_motifdist_80hz
 ```
 
-Output: `relcon/experiments/out/paaws_motifdist/checkpoint_best.pkl`
+Output: `relcon/experiments/out/paaws_motifdist_80hz/checkpoint_best.pkl`
+
+**Resuming after job timeout:** A `checkpoint_latest.pkl` is saved after every epoch. Pass `--resume_on` to continue from the last completed epoch (safe to always include — if no checkpoint exists it starts from scratch):
+
+```bash
+python run_exp.py --config paaws_motifdist_80hz --resume_on
+```
 
 ---
 
 ## Step 3 — Pre-train RelCon
 
 ```bash
-python run_exp.py --config paaws_relcon
+python run_exp.py --config paaws_relcon_80hz
 ```
 
-Output: `relcon/experiments/out/paaws_relcon/checkpoint_best.pkl`
+Output: `relcon/experiments/out/paaws_relcon_80hz/checkpoint_best.pkl`
 
 Downstream evaluation is skipped because `--run_eval` is not passed.
+
+**Resuming after job timeout:**
+
+```bash
+python run_exp.py --config paaws_relcon_80hz --resume_on
+```
+
+> Note: if `checkpoint_best.pkl` already exists, training is skipped unless `--resume_on` or `--retrain` is passed. Always use `--resume_on` when continuing a partial run.
 
 ---
 
