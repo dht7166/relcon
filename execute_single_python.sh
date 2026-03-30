@@ -13,8 +13,9 @@
 
 # Load your modules here
 module load anaconda3
-conda activate /scratch/tran.hoan1/replicate/relcon/.env
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+conda activate "$SCRIPT_DIR/.env"
 
 # Commands to execute
-cd /scratch/tran.hoan1/replicate/relcon
+cd "$SCRIPT_DIR"
 python "$@"
