@@ -35,7 +35,7 @@ def main(rawpath):
     if not os.path.exists(os.path.join(data_root, NAME, "PAMAP2_Dataset")):
         with zipfile.ZipFile(os.path.join(data_root, "PAMAP2_Dataset.zip"),"r") as zip_ref:
             zip_ref.extractall(data_root)
-    os.remove(os.path.join(data_root, NAME, "PAMAP2_Dataset.zip")) 
+    os.remove(os.path.join(data_root, "PAMAP2_Dataset.zip")) 
 
     data_root_new = os.path.join(data_root, "PAMAP2_Dataset")
 

@@ -43,7 +43,7 @@ if __name__ == "__main__":
     # CONFIGFILE = "24_1_4_ppgdist_stride2_5maskperc50"
     CONFIGFILE = args.config
     config = all_expconfigs[CONFIGFILE]
-    config.set_rundir(CONFIGFILE)
+    config.set_rundir(getattr(config, "weight_name", None) or CONFIGFILE)
 
     init_dl_program(config=config, device_name=0, max_threads=torch.get_num_threads())
 

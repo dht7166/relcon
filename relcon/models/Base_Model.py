@@ -33,6 +33,8 @@ class Base_ModelConfig:
         # eval stuff
         eval_configs=[],
         #####################################
+        # optional: override the checkpoint directory name (default: config key)
+        weight_name=None,
     ):
         self.model_folder = model_folder
         self.model_file = model_file
@@ -49,6 +51,7 @@ class Base_ModelConfig:
         self.num_threads = num_threads
 
         self.eval_configs = eval_configs
+        self.weight_name = weight_name
 
         self.device = None
         self.input_dims = None
