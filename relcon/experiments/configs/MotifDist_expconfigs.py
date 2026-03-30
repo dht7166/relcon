@@ -30,3 +30,46 @@ allmotifdist_expconfigs["25_3_8_motifdist"] = MotifDist_ModelConfig(
     batch_size=64,
     save_epochfreq=10,
 )
+
+
+allmotifdist_expconfigs["paaws_motifdist_80hz"] = MotifDist_ModelConfig(
+    data_config=SSLDataConfig(
+        data_folder="relcon/data/datasets/paaws_motifdist_v1_80hz",
+    ),
+    net_config=Base_NetConfig(
+        net_folder="CrossAttn",
+        net_file="CrossAttn_Net",
+        params={
+            "query_dimsize": 3,
+            "key_dimsize": 3,
+            "kernel_size": 15,
+            "embed_dim": 64,
+            "double_receptivefield": 2,
+        },
+    ),
+    epochs=10,
+    lr=0.001,
+    batch_size=64,
+    save_epochfreq=10,
+)
+
+allmotifdist_expconfigs["paaws_motifdist_100hz"] = MotifDist_ModelConfig(
+    data_config=SSLDataConfig(
+        data_folder="relcon/data/datasets/paaws_motifdist_v2_100hz",
+    ),
+    net_config=Base_NetConfig(
+        net_folder="CrossAttn",
+        net_file="CrossAttn_Net",
+        params={
+            "query_dimsize": 3,
+            "key_dimsize": 3,
+            "kernel_size": 15,
+            "embed_dim": 64,
+            "double_receptivefield": 2,
+        },
+    ),
+    epochs=10,
+    lr=0.001,
+    batch_size=64,
+    save_epochfreq=10,
+)

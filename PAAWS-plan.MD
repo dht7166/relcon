@@ -12,7 +12,7 @@ Add to `relcon/experiments/configs/MotifDist_expconfigs.py`:
 ```python
 allmotifdist_expconfigs["paaws_motifdist"] = MotifDist_ModelConfig(
     data_config=SSLDataConfig(
-        data_folder="relcon/data/datasets/paaws_pretrain",
+        data_folder="relcon/data/datasets/paaws_pretrain_v1_80hz",  # or _v2_100hz; must match Step 1 --output_dir
     ),
     net_config=Base_NetConfig(
         net_folder="CrossAttn",
@@ -40,7 +40,7 @@ allrelcon_expconfigs["paaws_relcon"] = RelCon_ModelConfig(
     withinuser_cands=20,
     motifdist_expconfig_key="paaws_motifdist",   # must match key above
     data_config=SSLDataConfig(
-        data_folder="relcon/data/datasets/paaws_pretrain",
+        data_folder="relcon/data/datasets/paaws_pretrain_v1_80hz",  # must match MotifDist data_folder
     ),
     net_config=Base_NetConfig(
         net_folder="ResNet1D",
@@ -60,7 +60,17 @@ allrelcon_expconfigs["paaws_relcon"] = RelCon_ModelConfig(
     lr=0.000001,
     batch_size=64,
     save_epochfreq=10,
-    eval_configs=[],   # keep empty until Step 5
+    eval_configs=[
+        Base_EvalConfig(
+            name="PAAWS FreeLiving LeftWrist | Linear Probe",
+            model_folder="Classify",
+            model_file="linear_probe",     # or "MLP_probe" / "MLP_finetune"
+            cv_splits=5,
+            data_config=SupervisedDataConfig(
+                data_folder="relcon/data/datasets/paaws_downstream/freeliving_leftwrist",
+            ),
+        ),
+    ],
 )
 ```
 
@@ -71,16 +81,25 @@ allrelcon_expconfigs["paaws_relcon"] = RelCon_ModelConfig(
 Run once per participant, specifying their train/val split assignment.
 
 ```bash
-python relcon/data/process/process_paaws_pretrain.py \
-    --input /path/to/participant.csv \
-    --ID <participant_id> \
-    --train \          # or --val
-    --output_dir relcon/data/datasets/paaws_pretrain
+python relcon/data/process/process_actigraph_pretrain.py \
+    --input <INPUT_CSV> \
+    --ID <SUBJECT_ID> \
+    --train \
+    --output_dir relcon/data/datasets/paaws_motifdist
+# replace --train with --val for validation participants
 ```
 
-- Output: `relcon/data/datasets/paaws_pretrain/{train,val}/subject_{ID}/hour_{i}/ts_{j}.npy`
+The script produces **two** output directories from a single `--output_dir <BASE>`:
+- `<BASE>_v1_80hz/` — 256-sample windows @ 80 Hz (3.2 s), no resampling
+- `<BASE>_v2_100hz/` — 205-sample windows @ 80 Hz resampled to 256 samples @ 100 Hz
+
+Both share the same structure:
+```
+<BASE>_{v1_80hz,v2_100hz}/{train,val}/subject_<SUBJECT_ID>/hour_<i>/ts_<j>.npy
+```
+
 - Each subject/hour folder must have ≥ 20 segments (`withinuser_cands=20`); script warns if not met
-- test/ folder is not needed and is never used during pre-training
+- `test/` split is supported but not used during pre-training
 
 ---
 
@@ -102,7 +121,7 @@ python run_exp.py --config paaws_relcon
 
 Output: `relcon/experiments/out/paaws_relcon/checkpoint_best.pkl`
 
-Downstream evaluation is skipped because `eval_configs=[]` in the config.
+Downstream evaluation is skipped because `--run_eval` is not passed.
 
 ---
 
@@ -110,7 +129,7 @@ Downstream evaluation is skipped because `eval_configs=[]` in the config.
 
 ```bash
 python relcon/data/process/process_paaws_downstream.py \
-    --dataset_dir /path/to/PAAWS_FreeLiving \
+    --dataset_dir <PAAWS_FREELIVING_DIR> \
     --location LeftWrist \
     --output_dir relcon/data/datasets/paaws_downstream/freeliving_leftwrist \
     --n_folds 5 \
@@ -125,22 +144,11 @@ python relcon/data/process/process_paaws_downstream.py \
 
 ## Step 5 — Downstream evaluation
 
-Add `Base_EvalConfig` entries to `eval_configs` in the `paaws_relcon` config in
-`relcon/experiments/configs/RelCon_expconfigs.py`, then re-run Step 3:
-
-```python
-eval_configs=[
-    Base_EvalConfig(
-        name="PAAWS FreeLiving LeftWrist | Linear Probe",
-        model_folder="Classify",
-        model_file="linear_probe",     # or "MLP_probe" / "MLP_finetune"
-        cv_splits=5,
-        data_config=SupervisedDataConfig(
-            data_folder="relcon/data/datasets/paaws_downstream/freeliving_leftwrist",
-        ),
-    ),
-]
+```bash
+python run_exp.py --config paaws_relcon --run_eval
 ```
+
+Pre-training is skipped (checkpoint already exists). Evaluation runs all `eval_configs` entries.
 
 Results saved to: `relcon/experiments/out/paaws_relcon/paaws_relcon_easy_paste.csv`
 
