@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 PYTHON     = sys.executable   # uses whichever env launched this script (.env/bin/python)
 SCRIPT     = 'relcon/data/process/process_actigraph_pretrain.py'
 OUTPUT_DIR = 'relcon/data/datasets/paaws_motifdist'
-N_WORKERS  = 4   # tune to available cores / I/O bandwidth
+N_WORKERS  = 6   # tune to available cores / I/O bandwidth
 
 path_to_file   = os.path.join(sys.argv[1], 'DS_*', 'accel', '*.csv') # provide full path to sys.argv[1] e.g., /path/PAAWS_FreeLiving/
 list_actigraph = glob.glob(path_to_file)

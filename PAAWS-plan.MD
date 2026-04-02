@@ -10,10 +10,10 @@ Full pipeline from raw PAAWS accelerometer data to a pre-trained RelCon model an
 Add to `relcon/experiments/configs/MotifDist_expconfigs.py`:
 
 ```python
-allmotifdist_expconfigs["paaws_motifdist"] = MotifDist_ModelConfig(
+allmotifdist_expconfigs["paaws_motifdist"] = MotifDist_ModelConfig( # make sure the exp config name is set properly, later codes use it
     data_config=SSLDataConfig(
         data_folder="relcon/data/datasets/paaws_pretrain_v1_80hz",  # or _v2_100hz; must match Step 1 --output_dir
-    ),
+    ),                                                              # the rest keep as-is
     net_config=Base_NetConfig(
         net_folder="CrossAttn",
         net_file="CrossAttn_Net",

@@ -1,43 +1,34 @@
 """
-This function constructs a dummy dataset that mimics our original pre-training dataset. 
-Due to privacy concerns and IRB restrictions, we will be unable to release our pre-training 
-data. Therefore, if you would like to pre-train the RelCon model on 
-your own dataset, please pre-process the data so that the numpy time-series files follows 
+This function constructs a dummy dataset that mimics our original pre-training dataset.
+Due to privacy concerns and IRB restrictions, we will be unable to release our pre-training
+data. Therefore, if you would like to pre-train the RelCon model on
+your own dataset, please pre-process the data so that the numpy time-series files follows
 the below structure.
+
+NOTE: This script uses the large-scale data format (per-subject .npy + _meta.pkl),
+designed for use with large datasets such as NHANES or PAAWS. Each subject's windows
+are stored as a single stacked array rather than individual per-window files.
 
 relcon/
 └── data/
     └── datasets/
         └── dummydataset/
             ├── train/
-            │   ├── subject_0/
-            │   │   ├── hour_0/
-            │   │   │   ├── ts_0.npy
-            │   │   │   ├── ts_1.npy
-            │   │   │   └── ...
-            │   │   └── hour_1/
-            │   │       ├── ts_0.npy
-            │   │       ├── ts_1.npy
-            │   │       └── ...
-            │   └── subject_1/
-            │       └── ...
+            │   ├── subject_0.npy              shape: (total_windows, 256, 3)
+            │   ├── subject_0_meta.pkl         {hour_id: (start_row, end_row)}
+            │   └── ...
             ├── val/
-            │   ├── subject_32/
-            │   │   └── hour_0/
-            │   │       ├── ts_0.npy
-            │   │       └── ...
-            │   └── subject_33/
-            │       └── ...
+            │   ├── subject_32.npy
+            │   ├── subject_32_meta.pkl
+            │   └── ...
             └── test/
-                ├── subject_48/
-                │   └── hour_0/
-                │       ├── ts_0.npy
-                │       └── ...
-                └── subject_49/
-                    └── ...
+                ├── subject_48.npy
+                ├── subject_48_meta.pkl
+                └── ...
 
 """
 
+import pickle
 import numpy as np
 import os
 from tqdm import tqdm
@@ -64,20 +55,20 @@ def main():
         typepath = os.path.join(PATH, TYPE)
         os.makedirs(typepath, exist_ok=True)
 
-        # construct sub-parent folder for the subject-level
-        subjectpath = os.path.join(typepath, f"subject_{subject_id}")
-        os.makedirs(subjectpath, exist_ok=True)
+        # Generate all windows for this subject across all hours
+        windows_all = []
+        meta = {}
+        row = 0
         for hour_id in range(NUM_HOURS_PER_SUBJECT):
-            # Construct child folder for hour-level
-            # The other time-series alongside the anchor time-series within the folder form the "within-user" candidates
-            hourpath = os.path.join(subjectpath, f"hour_{hour_id}")
-            os.makedirs(hourpath, exist_ok=True)
+            hour_windows = np.random.normal(size=(NUM_TS_PER_HOUR, TIMELEN, CHANNELS)).astype(np.float32)
+            meta[hour_id] = (row, row + NUM_TS_PER_HOUR)
+            windows_all.append(hour_windows)
+            row += NUM_TS_PER_HOUR
 
-            # construct 2.56 second chunks sampled at 100hz
-            for i in range(NUM_TS_PER_HOUR):
-                # models expect numpy arrays of size TIMELEN, CHANNELS
-                timeseries = np.random.normal(size=(TIMELEN, CHANNELS))
-                np.save(os.path.join(hourpath, f"ts_{i}"), timeseries)
+        stacked = np.concatenate(windows_all, axis=0)
+        np.save(os.path.join(typepath, f"subject_{subject_id}.npy"), stacked)
+        with open(os.path.join(typepath, f"subject_{subject_id}_meta.pkl"), "wb") as f:
+            pickle.dump(meta, f)
 
 
 if __name__ == "__main__":

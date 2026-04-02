@@ -190,37 +190,37 @@ def relative_contrastive_loss(emb_ancs, emb_withinuser_cands, sortedinds, tau=1)
 
 
 #################################################
-import pathlib
 from relcon.data.Base_Dataset import OnTheFly_FolderNpyDataset
-from relcon.utils.datasets import filter_files_by_npy_count
 
 
 class RelCon_ValidCandFolders_Dataset(OnTheFly_FolderNpyDataset):
     def __init__(self, path, withinuser_cands=5):
         "Initialization"
         super().__init__(path)
-        self.filelist = filter_files_by_npy_count(self.filelist, withinuser_cands + 1)
-
-        self.length = len(self.filelist)
         self.withinuser_cands = withinuser_cands
+
+        # Filter to hours that have enough windows for 1 anchor + withinuser_cands candidates
+        self.hours_list = [
+            (p, h, s, e) for p, h, s, e in self.hours_list
+            if e - s >= withinuser_cands + 1
+        ]
+        self.cum_lengths = np.cumsum([e - s for _, _, s, e in self.hours_list])
+        self.length = int(self.cum_lengths[-1]) if len(self.cum_lengths) else 0
 
     def __getitem__(self, idx):
         "Generates one sample of data"
-        out_dict = super().__getitem__(idx)
-        filepath = out_dict["filepath"]
+        i = int(np.searchsorted(self.cum_lengths, idx, side="right"))
+        npy_path, hour_id, start, end = self.hours_list[i]
+        offset = idx - (int(self.cum_lengths[i - 1]) if i > 0 else 0)
+        row_idx = start + offset
 
-        parentfolder = pathlib.PosixPath(filepath).parents[0]
-        signals_sameparent = set(pathlib.Path(parentfolder).rglob("*.npy"))
-        signals_sameparent.remove(pathlib.Path(filepath))
-        withinuser_cand_names = np.random.choice(
-            list(signals_sameparent), size=self.withinuser_cands, replace=False
-        )
-        withinuser_cand_signals = []
-        for name in withinuser_cand_names:
-            withinuser_cand_signal = np.load(name).astype(np.float32)
-            withinuser_cand_signals.append(withinuser_cand_signal)
+        arr = np.load(npy_path, mmap_mode="r")
+        signal = arr[row_idx].astype(np.float32).copy()
 
-        withinuser_cand_signals = np.stack(withinuser_cand_signals)
-        out_dict["withinuser_cand_signals"] = withinuser_cand_signals
+        # Sample within-hour candidates by array indexing — no filesystem calls
+        hour_rows = np.arange(start, end)
+        hour_rows = hour_rows[hour_rows != row_idx]
+        cand_indices = np.random.choice(hour_rows, size=self.withinuser_cands, replace=False)
+        withinuser_cand_signals = arr[cand_indices].astype(np.float32).copy()
 
-        return out_dict
+        return {"signal": signal, "filepath": npy_path, "withinuser_cand_signals": withinuser_cand_signals}

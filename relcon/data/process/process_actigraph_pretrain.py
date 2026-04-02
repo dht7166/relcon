@@ -6,8 +6,8 @@ Produces two dataset versions:
   v2_100hz/  — 205-sample windows @ 80 Hz (2.56 s), resampled to 256 samples @ 100 Hz
 
 Output structure (same for both versions):
-  {out_dir}/{split}/subject_{ID}/hour_{i}/ts_{j}.npy
-  Each .npy: float32 array of shape (256, 3)
+  {out_dir}/{split}/subject_{ID}.npy          shape: (total_windows, 256, 3) float32
+  {out_dir}/{split}/subject_{ID}_meta.pkl     {hour_id: (start_row, end_row)}
 
 Output directory resolution (first match wins):
   --output_dir_v1 / --output_dir_v2   per-version explicit paths
@@ -29,6 +29,7 @@ Usage:
 """
 
 import sys
+import pickle
 import argparse
 import numpy as np
 import pandas as pd
@@ -79,7 +80,7 @@ def read_data(file: str) -> pd.DataFrame:
     step  = timedelta(seconds=1 / sampling_rate)
 
     df = pd.read_csv(file, skiprows=10, header=0)
-    df["Timestamp"] = [start + i * step for i in range(len(df))]
+    df["Timestamp"] = pd.date_range(start=start, periods=len(df), freq=pd.tseries.frequencies.to_offset(step))
     return df
 
 
@@ -92,12 +93,6 @@ def _segment(data: np.ndarray, window: int) -> np.ndarray:
     """
     n = len(data) // window
     return data[: n * window].reshape(n, window, 3)
-
-
-def _save(windows: np.ndarray, folder: Path) -> None:
-    folder.mkdir(parents=True, exist_ok=True)
-    for i, w in enumerate(windows):
-        np.save(folder / f"ts_{i}.npy", w)
 
 
 # ── Core processing ────────────────────────────────────────────────────────────
@@ -121,17 +116,25 @@ def process(
     hour_bin = df["Timestamp"].dt.floor("1h")
     warnings = []
 
+    v1_windows_all, v2_windows_all = [], []
+    v1_meta, v2_meta = {}, {}
+    row_v1, row_v2 = 0, 0
+
     for hour_idx, (_, hour_df) in enumerate(df.groupby(hour_bin, sort=True)):
         hour_accel = accel[hour_df.index.to_numpy()]       # (T_hour, 3)
 
         # ── v1: 3.2 s, 256 samples @ 80 Hz, no resampling ─────────────────
         v1_wins = _segment(hour_accel, V1_WINDOW).astype(np.float32)
-        _save(v1_wins, out_v1 / split / f"subject_{subject_id}" / f"hour_{hour_idx}")
+        v1_meta[hour_idx] = (row_v1, row_v1 + len(v1_wins))
+        v1_windows_all.append(v1_wins)
+        row_v1 += len(v1_wins)
 
         # ── v2: 2.56 s (205 samples @ 80 Hz) → resample to 256 @ 100 Hz ───
         v2_src  = _segment(hour_accel, V2_WINDOW)
-        v2_wins = resample(v2_src, V2_OUT, axis=1).astype(np.float32) if len(v2_src) > 0 else v2_src
-        _save(v2_wins, out_v2 / split / f"subject_{subject_id}" / f"hour_{hour_idx}")
+        v2_wins = resample(v2_src, V2_OUT, axis=1).astype(np.float32) if len(v2_src) > 0 else v2_src.astype(np.float32)
+        v2_meta[hour_idx] = (row_v2, row_v2 + len(v2_wins))
+        v2_windows_all.append(v2_wins)
+        row_v2 += len(v2_wins)
 
         for label, n in [("v1_80hz", len(v1_wins)), ("v2_100hz", len(v2_wins))]:
             if n < MIN_SEGS_PER_HOUR:
@@ -139,9 +142,22 @@ def process(
                     f"  [{label}] hour_{hour_idx}: {n} segments < {MIN_SEGS_PER_HOUR} required"
                 )
 
+    # ── Save per-subject stacked arrays ────────────────────────────────────────
+    for out_dir, windows_all, meta in [
+        (out_v1, v1_windows_all, v1_meta),
+        (out_v2, v2_windows_all, v2_meta),
+    ]:
+        split_dir = out_dir / split
+        split_dir.mkdir(parents=True, exist_ok=True)
+
+        stacked = np.concatenate(windows_all, axis=0) if windows_all else np.empty((0, 256, 3), dtype=np.float32)
+        np.save(split_dir / f"subject_{subject_id}.npy", stacked)
+        with open(split_dir / f"subject_{subject_id}_meta.pkl", "wb") as f:
+            pickle.dump(meta, f)
+
     print(f"Done — subject_{subject_id} ({split})")
-    print(f"  v1 → {out_v1 / split / f'subject_{subject_id}'}")
-    print(f"  v2 → {out_v2 / split / f'subject_{subject_id}'}")
+    print(f"  v1 → {out_v1 / split} ({row_v1} windows)")
+    print(f"  v2 → {out_v2 / split} ({row_v2} windows)")
 
     if warnings:
         print(f"\nWarning: {len(warnings)} hour folder(s) below {MIN_SEGS_PER_HOUR} segments:")
