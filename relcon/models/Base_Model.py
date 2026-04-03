@@ -4,6 +4,7 @@ import numpy as np
 from tqdm import tqdm
 from abc import abstractmethod
 import os
+from datetime import datetime
 
 from relcon.data.Base_Dataset import Base_DatasetConfig
 from relcon.nets.Base_Nets import Base_NetConfig
@@ -26,6 +27,7 @@ class Base_ModelConfig:
         lr=0.001,
         batch_size=16,
         save_epochfreq=100,
+        save_stepfreq=1000,
         # experiment params
         seed=1234,
         num_threads=-1,
@@ -47,6 +49,7 @@ class Base_ModelConfig:
         self.lr = lr
         self.batch_size = batch_size
         self.save_epochfreq = save_epochfreq
+        self.save_stepfreq = save_stepfreq
         self.seed = seed
         self.num_threads = num_threads
 
@@ -98,6 +101,7 @@ class Base_ModelClass:
         self.batch_size = config.batch_size
         self.epochs = config.epochs
         self.save_epochfreq = config.save_epochfreq
+        self.save_stepfreq = getattr(config, "save_stepfreq", 1000)
 
         self.resume_on = resume_on
 
@@ -113,7 +117,8 @@ class Base_ModelClass:
         ...
 
     @abstractmethod
-    def run_one_epoch(self, dataloader: torch.utils.data.DataLoader, train: bool):
+    def run_one_epoch(self, dataloader: torch.utils.data.DataLoader, train: bool,
+                      global_step: int = 0, step_checkpoint_fn=None):
         ...
 
     @abstractmethod
@@ -138,16 +143,28 @@ class Base_ModelClass:
         best_val_loss = np.inf
 
         start_epoch = 0
+        global_step = 0
         if (self.resume_on) and (
             os.path.exists(os.path.join(self.run_dir, "checkpoint_latest.pkl"))
         ):
             state_dict = self.load(ckpt="latest", return_state_dict=True)
             self.optimizer.load_state_dict(state_dict["optimizer"])
-            start_epoch = state_dict["epoch"] + 1
+            start_epoch = state_dict["epoch"]
+            global_step = state_dict.get("global_step", 0)
+            saved_at = state_dict.get("saved_at", "unknown")
             printlog(
-                f"Resuming model from epoch {state_dict['epoch']}, with {self.epochs-start_epoch} additional epochs remaining for training",
+                f"Resuming from epoch {start_epoch}, global_step {global_step}, saved at {saved_at}",
                 self.run_dir,
             )
+            # If this was a mid-epoch checkpoint, re-run the same epoch from scratch
+            # (DataLoader reshuffles; weights are restored from last step save)
+            if not state_dict.get("epoch_complete", False):
+                printlog(
+                    f"Checkpoint was mid-epoch — restarting epoch {start_epoch} with restored weights",
+                    self.run_dir,
+                )
+            else:
+                start_epoch += 1
             if os.path.exists(os.path.join(self.run_dir, "checkpoint_best.pkl")):
                 best_state_dict = torch.load(
                     f"{self.run_dir}/checkpoint_best.pkl", map_location=self.device
@@ -156,14 +173,29 @@ class Base_ModelClass:
             else:
                 best_val_loss = state_dict["test_loss"]
 
+        def step_checkpoint_fn(step, epoch, loss):
+            sd = self.create_state_dict(epoch, loss)
+            sd["global_step"] = step
+            sd["saved_at"] = datetime.now().isoformat(timespec="seconds")
+            sd["epoch_complete"] = False
+            torch.save(sd, f"{self.run_dir}/checkpoint_latest.pkl")
+
         for epoch in tqdm(range(start_epoch, self.epochs), desc=f"{self.run_dir} fit:"):
-            train_loss, train_printouts = self.run_one_epoch(train_loader, train=True)
+            train_loss, train_printouts, global_step = self.run_one_epoch(
+                train_loader, train=True,
+                global_step=global_step,
+                step_checkpoint_fn=step_checkpoint_fn,
+                epoch=epoch,
+            )
             train_loss_list.append(train_loss)
 
-            val_loss, val_printouts = self.run_one_epoch(val_loader, train=False)
+            val_loss, val_printouts, _ = self.run_one_epoch(val_loader, train=False)
             val_loss_list.append(val_loss)
 
             state_dict = self.create_state_dict(epoch, val_loss)
+            state_dict["global_step"] = global_step
+            state_dict["saved_at"] = datetime.now().isoformat(timespec="seconds")
+            state_dict["epoch_complete"] = True
             if epoch % self.save_epochfreq == 0:
                 torch.save(state_dict, f"{self.run_dir}/checkpoint_epoch{epoch}.pkl")
             if epoch == 0 or val_loss < best_val_loss:
@@ -172,10 +204,10 @@ class Base_ModelClass:
             torch.save(state_dict, f"{self.run_dir}/checkpoint_latest.pkl")
 
             printoutstring = (
-                f"Epoch #{epoch}: Loss/Train={train_loss:5f} | Loss/Val={val_loss:5f}"
+                f"Epoch #{epoch} (global_step={global_step}): Loss/Train={train_loss:5f} | Loss/Val={val_loss:5f}"
             )
-            writer.add_scalar("Loss/Train", train_loss, epoch)
-            writer.add_scalar("Loss/Val", val_loss, epoch)
+            writer.add_scalar("Loss/Train", train_loss, global_step)
+            writer.add_scalar("Loss/Val", val_loss, global_step)
 
             # for key in train_printouts.keys():
             #     writer.add_scalar(f'{key}/Train', train_printouts[key], epoch)

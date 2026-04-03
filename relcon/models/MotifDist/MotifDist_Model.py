@@ -39,7 +39,8 @@ class Model(Base_ModelClass):
 
         return state_dict
 
-    def run_one_epoch(self, dataloader: torch.utils.data.DataLoader, train: bool):
+    def run_one_epoch(self, dataloader: torch.utils.data.DataLoader, train: bool,
+                      global_step: int = 0, step_checkpoint_fn=None, epoch: int = 0):
         self.net.train(mode=train)
         self.optimizer.zero_grad()
 
@@ -64,10 +65,13 @@ class Model(Base_ModelClass):
                     reconstruct_loss.backward()
                     self.optimizer.step()
                     self.optimizer.zero_grad()
+                    global_step += 1
+                    if step_checkpoint_fn is not None and global_step % self.save_stepfreq == 0:
+                        step_checkpoint_fn(global_step, epoch, reconstruct_loss.item())
 
                 total_loss += reconstruct_loss.item()
 
-            return total_loss, {}
+            return total_loss, {}, global_step
 
     def calc_distance(self, anchor: torch.Tensor, candidate: torch.Tensor):
         self.net.eval()

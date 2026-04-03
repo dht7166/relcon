@@ -52,7 +52,8 @@ class Model(Base_EvalClass):
 
         return loader
 
-    def run_one_epoch(self, dataloader: torch.utils.data.DataLoader, train: bool):
+    def run_one_epoch(self, dataloader: torch.utils.data.DataLoader, train: bool,
+                      global_step: int = 0, step_checkpoint_fn=None, epoch: int = 0):
 
         self.trained_net.train(mode=train)
         self.net.train(mode=train)
@@ -102,7 +103,7 @@ class Model(Base_EvalClass):
         # Calculate total metrics
         out_dict = {"F1": metrics.f1_score(y_true=y_test, y_pred=y_pred, average="macro")}
         # Return metrics as a dictionary
-        return total_loss, out_dict
+        return total_loss, out_dict, global_step
 
     def load(self):
         state_dict = torch.load(
