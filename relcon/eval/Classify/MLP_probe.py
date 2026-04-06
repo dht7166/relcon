@@ -42,7 +42,7 @@ class Model(Base_EvalClass):
         with torch.no_grad():
             for i in tqdm(range(0, X_valtrain.shape[0], batch_size)):
                 X_valtrain_temp.append(
-                    self.trained_net(X_valtrain[i : i + batch_size].cuda())
+                    self.trained_net(X_valtrain[i : i + batch_size].to(self.device))
                     .cpu()
                     .detach()
                     .numpy()
@@ -89,7 +89,7 @@ class Model(Base_EvalClass):
         with torch.no_grad():
             for i in tqdm(range(0, X_test.shape[0], batch_size)):
                 X_test_temp.append(
-                    self.trained_net(X_test[i : i + batch_size].cuda())
+                    self.trained_net(X_test[i : i + batch_size].to(self.device))
                     .cpu()
                     .detach()
                     .numpy()

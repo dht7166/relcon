@@ -58,7 +58,7 @@ class Model(Base_ModelClass):
                 reconstruction, attn_weights = self.net(query_in=query, key_in=key)
 
                 reconstruct_loss = torch.sum(
-                    torch.square(reconstruction - query.cuda())
+                    torch.square(reconstruction - query.to(self.device))
                 )
 
                 if train:
@@ -81,7 +81,7 @@ class Model(Base_ModelClass):
 
             reconstruction, attn_weights = self.net(query_in=query, key_in=key)
             reconstruct_loss = torch.sum(
-                torch.square(reconstruction - query.cuda()), dim=(1, 2)
+                torch.square(reconstruction - query.to(self.device)), dim=(1, 2)
             )
 
         self.net.train()

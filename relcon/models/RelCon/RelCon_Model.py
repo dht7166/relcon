@@ -37,7 +37,7 @@ class Model(Base_ModelClass):
 
         motifdist_config.set_rundir(self.config.motifdist_expconfig_key)
         self.motifdist = import_model(model_config=motifdist_config, reload_ckpt="best")
-        self.motifdist.net = self.motifdist.net.cuda()
+        self.motifdist.net = self.motifdist.net.to(self.device)
 
     def setup_dataloader(self, X, y, train: bool) -> torch.utils.data.DataLoader:
         dataset = RelCon_ValidCandFolders_Dataset(
@@ -90,15 +90,15 @@ class Model(Base_ModelClass):
                         (anchor_signal[idx:, :], anchor_signal[:idx, :]), dim=0
                     )
                     distance = self.motifdist.calc_distance(
-                        anchor=anchor_signal.cuda(),
-                        candidate=rotated_anchor_signal.cuda(),
+                        anchor=anchor_signal.to(self.device),
+                        candidate=rotated_anchor_signal.to(self.device),
                     )
                     distances.append(distance)
 
                 for idx in range(withinuser_cand_signals.shape[1]):
                     distance = self.motifdist.calc_distance(
-                        anchor=anchor_signal.cuda(),
-                        candidate=withinuser_cand_signals[:, idx, :].cuda(),
+                        anchor=anchor_signal.to(self.device),
+                        candidate=withinuser_cand_signals[:, idx, :].to(self.device),
                     )
                     distances.append(distance)
 
@@ -112,13 +112,13 @@ class Model(Base_ModelClass):
 
                 # this should be a BS x Channel output
                 emb_ancs = self.net(
-                    anchor_signal[:, :, self.config.encoder_dims].transpose(1, 2).cuda()
+                    anchor_signal[:, :, self.config.encoder_dims].transpose(1, 2).to(self.device)
                 )
                 emb_withinuser_cands = self.net(
                     withinuser_cand_signals[:, :, :, self.config.encoder_dims]
                     .view(bs * withinuser_candsetsize, length, -1)
                     .transpose(1, 2)
-                    .cuda()
+                    .to(self.device)
                 )
                 emb_withinuser_cands = emb_withinuser_cands.view(
                     bs, withinuser_candsetsize, -1

@@ -29,8 +29,8 @@ class Model(Base_EvalClass):
                 self.config.evalnetparams["mlp_dim"],
                 self.config.evalnetparams["class_num"],
             ),
-        ).cuda()
-        self.loss = nn.CrossEntropyLoss().cuda()
+        ).to(self.device)
+        self.loss = nn.CrossEntropyLoss().to(self.device)
 
     def setup_eval(self, **kwargs):
         super().setup_eval(**kwargs)
@@ -69,11 +69,11 @@ class Model(Base_EvalClass):
                 dataloader, desc="Training" if train else "Evaluating", leave=False
             ):
 
-                encoded = self.trained_net(X.cuda())
+                encoded = self.trained_net(X.to(self.device))
                 logits = self.net(encoded)
                 logits = logits.squeeze(1)
                 y = y.long()
-                loss = self.loss(logits, y.cuda())
+                loss = self.loss(logits, y.to(self.device))
 
                 if train:
                     loss.backward()

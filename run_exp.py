@@ -47,7 +47,7 @@ if __name__ == "__main__":
     config = all_expconfigs[CONFIGFILE]
     config.set_rundir(getattr(config, "weight_name", None) or CONFIGFILE)
 
-    init_dl_program(config=config, device_name=0, max_threads=torch.get_num_threads())
+    init_dl_program(config=config, device_name="cuda" if torch.cuda.is_available() else "cpu", max_threads=torch.get_num_threads())
 
     # Begin training contrastive learner
     train_data, train_labels, val_data, val_labels, test_data, test_labels  = \
