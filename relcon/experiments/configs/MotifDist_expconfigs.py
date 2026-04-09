@@ -49,7 +49,7 @@ allmotifdist_expconfigs["paaws_motifdist_80hz"] = MotifDist_ModelConfig(
     ),
     epochs=10,
     lr=0.001,
-    batch_size=64,
+    batch_size=128,
     save_epochfreq=10,
 )
 
@@ -70,6 +70,6 @@ allmotifdist_expconfigs["paaws_motifdist_100hz"] = MotifDist_ModelConfig(
     ),
     epochs=10,
     lr=0.001,
-    batch_size=64,
+    batch_size=128,
     save_epochfreq=10,
 )

@@ -118,7 +118,8 @@ class Base_ModelClass:
 
     @abstractmethod
     def run_one_epoch(self, dataloader: torch.utils.data.DataLoader, train: bool,
-                      global_step: int = 0, step_checkpoint_fn=None):
+                      global_step: int = 0, step_checkpoint_fn=None,
+                      epoch: int = 0, max_steps: int = None):
         ...
 
     @abstractmethod
@@ -144,6 +145,7 @@ class Base_ModelClass:
 
         start_epoch = 0
         global_step = 0
+        max_steps = None
         if (self.resume_on) and (
             os.path.exists(os.path.join(self.run_dir, "checkpoint_latest.pkl"))
         ):
@@ -156,11 +158,11 @@ class Base_ModelClass:
                 f"Resuming from epoch {start_epoch}, global_step {global_step}, saved at {saved_at}",
                 self.run_dir,
             )
-            # If this was a mid-epoch checkpoint, re-run the same epoch from scratch
-            # (DataLoader reshuffles; weights are restored from last step save)
             if not state_dict.get("epoch_complete", False):
+                steps_done = global_step - start_epoch * len(train_loader)
+                max_steps = len(train_loader) - steps_done
                 printlog(
-                    f"Checkpoint was mid-epoch — restarting epoch {start_epoch} with restored weights",
+                    f"Checkpoint was mid-epoch — running {max_steps} remaining steps to finish epoch {start_epoch}",
                     self.run_dir,
                 )
             else:
@@ -186,7 +188,9 @@ class Base_ModelClass:
                 global_step=global_step,
                 step_checkpoint_fn=step_checkpoint_fn,
                 epoch=epoch,
+                max_steps=max_steps,
             )
+            max_steps = None  # only limit the first resumed epoch
             train_loss_list.append(train_loss)
 
             val_loss, val_printouts, _ = self.run_one_epoch(val_loader, train=False)
@@ -228,7 +232,7 @@ class Base_ModelClass:
         )
 
         test_loss_list = []
-        test_loss, test_printouts = self.run_one_epoch(test_loader, train=False)
+        test_loss, test_printouts, _ = self.run_one_epoch(test_loader, train=False)
         test_loss_list.append(test_loss)
 
         epoch = 0

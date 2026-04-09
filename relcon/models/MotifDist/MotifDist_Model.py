@@ -40,16 +40,19 @@ class Model(Base_ModelClass):
         return state_dict
 
     def run_one_epoch(self, dataloader: torch.utils.data.DataLoader, train: bool,
-                      global_step: int = 0, step_checkpoint_fn=None, epoch: int = 0):
+                      global_step: int = 0, step_checkpoint_fn=None,
+                      epoch: int = 0, max_steps: int = None):
         self.net.train(mode=train)
         self.optimizer.zero_grad()
 
         with torch.set_grad_enabled(train):
             total_loss = 0
+            steps_done = 0
 
-            for out_dict in tqdm(
-                dataloader, desc="Training" if train else "Evaluating", leave=False
-            ):
+            total = max_steps if (train and max_steps is not None) else len(dataloader)
+            for batch_idx, out_dict in enumerate(tqdm(
+                dataloader, desc="Training" if train else "Evaluating", total=total, leave=False
+            )):
                 x_original = out_dict["signal"]
                 x_aug = out_dict["aug_signal"]
                 query = x_original[:, :, self.config.query_dims].to(self.device)
@@ -66,8 +69,12 @@ class Model(Base_ModelClass):
                     self.optimizer.step()
                     self.optimizer.zero_grad()
                     global_step += 1
+                    steps_done += 1
                     if step_checkpoint_fn is not None and global_step % self.save_stepfreq == 0:
                         step_checkpoint_fn(global_step, epoch, reconstruct_loss.item())
+                    if max_steps is not None and steps_done >= max_steps:
+                        total_loss += reconstruct_loss.item()
+                        break
 
                 total_loss += reconstruct_loss.item()
 
